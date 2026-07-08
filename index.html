@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#061715" />
+    <meta name="description" content="Experiencia 3D conceptual de un reactor modular pequeño para la Amazonía peruana." />
+    <title>Núcleo Amazónico — Simulador SMR</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene" aria-label="Simulación tridimensional de una central SMR"></canvas>
+      <div class="grain" aria-hidden="true"></div>
+
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Núcleo Amazónico, inicio">
+          <span class="brand-mark"><i></i><i></i><i></i></span>
+          <span>NÚCLEO <b>AMAZÓNICO</b></span>
+        </a>
+        <div class="law-pill"><span></span> LEY N.º 32560 · ESCENARIO CONCEPTUAL</div>
+        <div class="top-actions">
+          <button class="icon-button" id="themeToggle" aria-label="Cambiar iluminación"><span>☼</span></button>
+          <button class="outline-button" id="aboutButton">Sobre el proyecto <span>↗</span></button>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero-copy" id="heroCopy">
+          <p class="eyebrow"><span>01</span> ENERGÍA FIRME PARA LA AMAZONÍA</p>
+          <h1>Una nueva escala<br />de <em>energía.</em></h1>
+          <p class="lede">Explora cómo un reactor modular pequeño podría transformar calor nuclear en electricidad estable para una red aislada como Iquitos.</p>
+          <div class="hero-actions">
+            <button class="primary-button" id="startTour">INICIAR RECORRIDO <span>→</span></button>
+            <button class="text-button" id="flowButton"><i></i> VER FLUJO ENERGÉTICO</button>
+          </div>
+        </section>
+
+        <aside class="insight-panel" id="insightPanel">
+          <div class="panel-topline">
+            <p>COMPONENTE <span id="componentIndex">01 / 05</span></p>
+            <button id="closePanel" aria-label="Cerrar panel">×</button>
+          </div>
+          <div class="component-icon" id="componentIcon">R1</div>
+          <p class="component-kicker" id="componentKicker">ISLA NUCLEAR</p>
+          <h2 id="componentTitle">Reactor modular</h2>
+          <p class="component-description" id="componentDescription">El núcleo libera calor mediante fisión controlada. Los sistemas se integran en un módulo compacto con múltiples barreras de contención.</p>
+          <div class="metric-grid">
+            <div><span id="metricAValue">120</span><small id="metricAUnit">MWe</small><p id="metricALabel">Potencia simulada</p></div>
+            <div><span id="metricBValue">24/7</span><small id="metricBUnit"></small><p id="metricBLabel">Operación continua</p></div>
+          </div>
+          <div class="status-line"><span></span><p>SIMULACIÓN EN TIEMPO REAL</p><b id="fpsLabel">60 FPS</b></div>
+        </aside>
+
+        <div class="hotspots" aria-hidden="true">
+          <div class="hotspot" data-hotspot="reactor"><span>01</span><p>REACTOR<br /><b>MÓDULO SMR</b></p></div>
+          <div class="hotspot" data-hotspot="turbina"><span>02</span><p>CONVERSIÓN<br /><b>TURBINA</b></p></div>
+          <div class="hotspot" data-hotspot="red"><span>04</span><p>DISTRIBUCIÓN<br /><b>SUBESTACIÓN</b></p></div>
+        </div>
+      </main>
+
+      <nav class="system-nav" aria-label="Componentes del sistema">
+        <button class="nav-step active" data-component="reactor"><span>01</span><p>REACTOR<small>Generación térmica</small></p></button>
+        <i></i>
+        <button class="nav-step" data-component="turbina"><span>02</span><p>TURBINA<small>Conversión mecánica</small></p></button>
+        <i></i>
+        <button class="nav-step" data-component="enfriamiento"><span>03</span><p>ENFRIAMIENTO<small>Ciclo cerrado</small></p></button>
+        <i></i>
+        <button class="nav-step" data-component="red"><span>04</span><p>RED ELÉCTRICA<small>Transmisión local</small></p></button>
+        <i></i>
+        <button class="nav-step" data-component="iquitos"><span>05</span><p>IQUITOS<small>Demanda urbana</small></p></button>
+      </nav>
+
+      <div class="interaction-hint"><span class="mouse-icon"></span> ARRASTRA PARA ORBITAR · SCROLL PARA ACERCAR</div>
+      <div class="legal-note">Visualización educativa · Parámetros ilustrativos, no constituyen diseño de ingeniería.</div>
+
+      <dialog id="aboutDialog">
+        <button class="dialog-close" aria-label="Cerrar">×</button>
+        <p class="eyebrow"><span>NA</span> PROPÓSITO</p>
+        <h2>Imaginar infraestructura antes de construirla.</h2>
+        <p>Esta experiencia presenta, de manera conceptual, el recorrido de la energía en una central SMR: desde el calor del reactor hasta la distribución eléctrica. No representa un emplazamiento aprobado ni sustituye estudios de seguridad, ambiente, red o participación ciudadana.</p>
+        <div class="dialog-callout">Perú promulgó la Ley N.º 32560 en marzo de 2026. La norma crea un marco de promoción y evaluación; cada proyecto concreto todavía requiere viabilidad, regulación, certificación y participación ciudadana.</div>
+      </dialog>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
