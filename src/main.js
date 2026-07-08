@@ -217,3 +217,124 @@ function animate() {
 renderer.setAnimationLoop(animate);
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75)); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) clock.getDelta(); });
+
+
+
+/* --- Realistic SMR technical layer: detailed click targets, circuit colors and engineering descriptions --- */
+const realismCss = document.createElement('style');
+realismCss.textContent = [
+  '.tech-legend{position:fixed;z-index:7;left:34px;top:112px;width:255px;padding:14px;border:1px solid rgba(215,244,224,.13);border-radius:5px;background:rgba(5,20,18,.68);backdrop-filter:blur(16px);font:500 8px DM Mono,monospace;letter-spacing:.08em;color:#8fa69d}',
+  '.tech-legend h3{margin:0 0 11px;color:#e4f4ee;font:700 10px Manrope,sans-serif;letter-spacing:.08em}.tech-legend p{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:7px 0}.tech-legend i{width:28px;height:3px;border-radius:3px;box-shadow:0 0 14px currentColor}.tech-legend b{color:#c9d9d2;font-weight:500}',
+  '.system-facts{margin:17px -4px 0;display:grid;gap:8px}.system-facts article{border:1px solid rgba(215,244,224,.11);background:rgba(7,25,22,.62);border-radius:4px;padding:10px 11px}.system-facts strong{display:block;color:#dceee8;font-size:10px;margin-bottom:5px}.system-facts span{display:block;color:#8aa099;font-size:10px;line-height:1.5}',
+  '.subcomponent-note{margin-top:13px;color:#789087;font:500 8px DM Mono,monospace;letter-spacing:.08em;line-height:1.55}.hotspot.detail>span{background:#ff9a3c;color:#1d1309;box-shadow:0 0 0 5px rgba(255,154,60,.14)}.hotspot.detail p{border:1px solid rgba(255,154,60,.18)}',
+  '@media(max-width:900px){.tech-legend{display:none}.system-facts{grid-template-columns:1fr 1fr}.system-facts article{padding:8px}.subcomponent-note{display:none}}'
+].join('');
+document.head.appendChild(realismCss);
+const techLegend = document.createElement('div');
+techLegend.className = 'tech-legend';
+techLegend.innerHTML = '<h3>CIRCUITOS DE PLANTA</h3><p><b>Primario presurizado</b><i style="color:#ff7a3d;background:#ff7a3d"></i></p><p><b>Vapor secundario</b><i style="color:#f5d26a;background:#f5d26a"></i></p><p><b>Condensado/enfriamiento</b><i style="color:#3ee6d0;background:#3ee6d0"></i></p><p><b>Salida eléctrica</b><i style="color:#b9f33d;background:#b9f33d"></i></p>';
+document.body.appendChild(techLegend);
+document.querySelector('.interaction-hint').innerHTML = '<span class="mouse-icon"></span> CLIC EN VASIJAS, TUBERÍAS, TURBINA O TRANSFORMADORES · ARRASTRA PARA ORBITAR';
+
+const rm = {
+  vessel: new THREE.MeshStandardMaterial({ color: 0x8fa39c, roughness: .28, metalness: .78 }),
+  cut: new THREE.MeshPhysicalMaterial({ color: 0xa7c9bf, transparent: true, opacity: .16, transmission: .25, roughness: .2, depthWrite: false, side: THREE.DoubleSide }),
+  dark: new THREE.MeshStandardMaterial({ color: 0x101615, roughness: .5, metalness: .65 }),
+  primary: new THREE.MeshStandardMaterial({ color: 0xff7a3d, emissive: 0xff5622, emissiveIntensity: .75, roughness: .32, metalness: .35 }),
+  steam: new THREE.MeshStandardMaterial({ color: 0xf5d26a, emissive: 0xf5d26a, emissiveIntensity: .38, roughness: .24, metalness: .15 }),
+  cooling: new THREE.MeshStandardMaterial({ color: 0x3ee6d0, emissive: 0x1cb8a9, emissiveIntensity: .42, roughness: .2, metalness: .2 }),
+  electric: new THREE.MeshStandardMaterial({ color: 0xb9f33d, emissive: 0xb9f33d, emissiveIntensity: .7, roughness: .28, metalness: .2 }),
+  copper: new THREE.MeshStandardMaterial({ color: 0xd9783b, roughness: .38, metalness: .72 }),
+  ceramic: new THREE.MeshStandardMaterial({ color: 0xcbd8d3, roughness: .45, metalness: .36 })
+};
+function pipe(points, radius, material, key) {
+  const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)));
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 72, radius, 12, false), material);
+  tube.castShadow = true; tube.receiveShadow = true; tube.userData.component = key;
+  raycastTargets.push(tube); scene.add(tube); return tube;
+}
+function boltRing(group, radius, y, count) {
+  for (let i = 0; i < count; i++) { const a = i / count * Math.PI * 2; group.add(mesh(new THREE.CylinderGeometry(.055, .055, .18, 8), rm.ceramic, [Math.cos(a) * radius, y, Math.sin(a) * radius])); }
+}
+function addHotspot(key, label, pos) {
+  const host = document.querySelector('.hotspots'); if (!host || hotspotPositions[key]) return;
+  const el = document.createElement('div'); el.className = 'hotspot detail'; el.dataset.hotspot = key; el.innerHTML = '<span>＋</span><p>' + label + '</p>';
+  host.appendChild(el); hotspots.push(el); hotspotPositions[key] = new THREE.Vector3(...pos);
+}
+
+const containment = new THREE.Group();
+containment.add(mesh(new THREE.CylinderGeometry(4.95, 5.25, 8.6, 72, 1, true, Math.PI * .16, Math.PI * 1.68), rm.cut, [0, 4.15, 0], false, false));
+containment.add(mesh(new THREE.SphereGeometry(4.95, 72, 18, Math.PI * .16, Math.PI * 1.68, 0, Math.PI / 2), rm.cut, [0, 8.45, 0], false, false));
+tagGroup(containment, 'containment');
+
+const vessel = new THREE.Group();
+vessel.add(mesh(new THREE.CylinderGeometry(1.18, 1.28, 5.2, 48), rm.vessel, [0, 3.35, 0]));
+vessel.add(mesh(new THREE.SphereGeometry(1.18, 48, 14, 0, Math.PI * 2, 0, Math.PI / 2), rm.vessel, [0, 5.95, 0]));
+vessel.add(mesh(new THREE.SphereGeometry(1.28, 48, 14, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), rm.vessel, [0, .75, 0]));
+boltRing(vessel, 1.32, 5.62, 24); boltRing(vessel, 1.42, 1.05, 24); tagGroup(vessel, 'smrVessel');
+
+const core = new THREE.Group(); core.add(mesh(new THREE.CylinderGeometry(.72, .78, 1.45, 36), warmMat, [0, 2.1, 0]));
+for (let ring = 0; ring < 3; ring++) { const n = ring === 0 ? 1 : ring * 8; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2, r = ring * .22; core.add(mesh(new THREE.CylinderGeometry(.035, .035, 1.72, 6), ring === 2 ? acidMat : rm.steam, [Math.cos(a) * r, 2.12, Math.sin(a) * r])); } }
+tagGroup(core, 'core');
+
+const rods = new THREE.Group(); rods.add(mesh(new THREE.BoxGeometry(1.7, .16, 1.7), rm.dark, [0, 6.58, 0]));
+for (let i = 0; i < 9; i++) { const x = (i % 3 - 1) * .42, z = (Math.floor(i / 3) - 1) * .42; rods.add(mesh(new THREE.CylinderGeometry(.03, .03, 3.9, 8), rm.dark, [x, 4.55, z])); rods.add(mesh(new THREE.CylinderGeometry(.08, .08, .42, 10), rm.ceramic, [x, 6.92, z])); }
+tagGroup(rods, 'controlRods');
+
+const sg = new THREE.Group();
+for (const side of [-1, 1]) {
+  sg.add(mesh(new THREE.CylinderGeometry(.48, .54, 3.55, 28), rm.ceramic, [side * 2.15, 3.75, .05]));
+  for (let j = 0; j < 5; j++) { const t = mesh(new THREE.TorusGeometry(.38, .025, 8, 30), rm.copper, [side * 2.15, 2.55 + j * .47, .05], true, false); t.rotation.x = Math.PI / 2; sg.add(t); }
+}
+tagGroup(sg, 'steamGenerator');
+const prz = new THREE.Group(); prz.add(mesh(new THREE.CylinderGeometry(.34, .38, 2.25, 24), rm.ceramic, [.35, 4.55, 2.22])); prz.add(mesh(new THREE.SphereGeometry(.36, 24, 12), rm.primary, [.35, 5.74, 2.22])); tagGroup(prz, 'pressurizer');
+const pumps = new THREE.Group(); for (const side of [-1, 1]) { const p = mesh(new THREE.CylinderGeometry(.32, .32, .7, 18), rm.vessel, [side * 2.72, 2.05, -1.2]); p.rotation.z = Math.PI / 2; pumps.add(p); pumps.add(mesh(new THREE.TorusGeometry(.38, .08, 10, 28), rm.primary, [side * 2.72, 2.05, -1.2])); } tagGroup(pumps, 'primaryPumps');
+pipe([[0, 4.9, 0], [1.2, 5.45, -.35], [3.1, 4.9, -.7], [3.1, 2.4, -1.15], [1.1, 2.2, -.6], [0, 2.55, 0]], .12, rm.primary, 'primaryLoop');
+pipe([[0, 4.8, 0], [-1.2, 5.38, -.35], [-3.1, 4.85, -.7], [-3.1, 2.4, -1.15], [-1.1, 2.2, -.6], [0, 2.55, 0]], .12, rm.primary, 'primaryLoop');
+pipe([[2.3, 5.25, .05], [5.2, 5.85, .45], [8.1, 4.2, 1.15], [9.6, 3.25, 1.28]], .13, rm.steam, 'secondaryLoop');
+pipe([[9.4, 1.35, -.25], [9.8, .95, -2.5], [10.2, .92, -6.2], [9.1, 1.12, -8.2]], .12, rm.cooling, 'coolingLoop');
+pipe([[15.5, 2.55, 1.3], [17.8, 3.05, 1.1], [20.8, 2.7, 1.0]], .07, rm.electric, 'electricalBus');
+
+const turbineCut = new THREE.Group(); turbineCut.position.set(11.5, 0, 1.3);
+for (let i = 0; i < 8; i++) { const d = mesh(new THREE.CylinderGeometry(.78 + i * .045, .78 + i * .045, .12, 24), i < 4 ? rm.steam : rm.vessel, [-2.85 + i * .48, 2.55, 0]); d.rotation.z = Math.PI / 2; turbineCut.add(d); }
+const hp = mesh(new THREE.CylinderGeometry(1.05, .86, 2.2, 32, 1, true, 0, Math.PI * 1.55), rm.cut, [-2.18, 2.55, 0], false, false); hp.rotation.z = Math.PI / 2; turbineCut.add(hp);
+const lp = mesh(new THREE.CylinderGeometry(1.42, 1.05, 2.65, 32, 1, true, Math.PI * .2, Math.PI * 1.55), rm.cut, [.62, 2.55, 0], false, false); lp.rotation.z = Math.PI / 2; turbineCut.add(lp); tagGroup(turbineCut, 'steamTurbine');
+const gen = new THREE.Group(); gen.position.set(11.5, 0, 1.3); const shell = mesh(new THREE.CylinderGeometry(1.32, 1.32, 2.25, 36, 1, true), rm.vessel, [3.35, 2.55, 0]); shell.rotation.z = Math.PI / 2; gen.add(shell); for (let i = 0; i < 5; i++) { const c = mesh(new THREE.TorusGeometry(.93, .04, 8, 34), rm.copper, [2.68 + i * .32, 2.55, 0], true, false); c.rotation.y = Math.PI / 2; gen.add(c); } tagGroup(gen, 'generator');
+const cond = new THREE.Group(); cond.position.set(11.5, 0, 1.3); const cs = mesh(new THREE.CylinderGeometry(.72, .72, 3.9, 28), rm.cooling, [-.2, .88, -1.72]); cs.rotation.z = Math.PI / 2; cond.add(cs); tagGroup(cond, 'condenser');
+
+const xfmr = new THREE.Group(); xfmr.position.set(21, 0, 1); for (const x of [-1.6, 0, 1.6]) { xfmr.add(mesh(new THREE.BoxGeometry(.72, 1.55, 1.2), rm.vessel, [x, 1.05, -1.45])); for (let j = 0; j < 4; j++) { const c = mesh(new THREE.TorusGeometry(.32, .035, 8, 22), rm.copper, [x, .65 + j * .27, -.82], true, false); c.rotation.x = Math.PI / 2; xfmr.add(c); } xfmr.add(mesh(new THREE.CylinderGeometry(.09, .09, .78, 10), acidMat, [x, 2.15, -1.45])); } tagGroup(xfmr, 'transformer');
+const swy = new THREE.Group(); swy.position.set(21, 0, 1); for (const z of [1.55, 2.65]) for (const x of [-3.2, -1.1, 1.1, 3.2]) { swy.add(mesh(new THREE.CylinderGeometry(.045, .06, 2.4, 8), rm.ceramic, [x, 1.35, z])); swy.add(mesh(new THREE.BoxGeometry(.95, .05, .05), rm.electric, [x + .25, 2.45, z])); swy.add(mesh(new THREE.SphereGeometry(.12, 10, 8), rm.electric, [x, 2.62, z])); } tagGroup(swy, 'switchyard');
+
+createFlow([[1.1,5,0],[3.2,5.3,-.7],[3.2,2.45,-1.2],[.8,2.4,-.4]], 0xff7a3d, 14);
+createFlow([[2.25,5.2,.1],[5.4,5.8,.5],[8.6,4.1,1.2],[10.1,3.05,1.3]], 0xf5d26a, 16);
+createFlow([[13.5,1.05,-.5],[12.4,.88,-2.1],[10,.9,-6.2],[8.7,1.1,-8.2]], 0x3ee6d0, 14);
+createFlow([[15.2,2.55,1.3],[18.3,3.05,1.05],[21,2.7,1],[25,3.3,2.5],[31,2.8,6.4]], 0xb9f33d, 18);
+
+Object.assign(components, {
+  reactor:{index:'01 / 05',icon:'SMR',kicker:'ISLA NUCLEAR · SMR INTEGRAL',title:'Módulo SMR integral',description:'Cutaway con contención, vasija de presión, núcleo, barras de control, generadores de vapor internos, presurizador y bombas del primario.',a:'120',au:'MWe',al:'Potencia eléctrica conceptual',b:'3',bu:'barreras',bl:'Combustible · vasija · contención',camera:[12,10,15],target:[0,3.9,0]},
+  containment:{index:'SMR / CNT',icon:'CNT',kicker:'BARRERA FINAL',title:'Contención del módulo',description:'Estructura envolvente diseñada para confinamiento físico. Se muestra cortada para observar equipos internos.',a:'3ª',au:'barrera',al:'Confinamiento externo',b:'CUT',bu:'away',bl:'Corte visual didáctico',camera:[10,9,13],target:[0,4.4,0]},
+  smrVessel:{index:'SMR / RPV',icon:'RPV',kicker:'REACTOR PRESSURE VESSEL',title:'Vasija de presión',description:'Recipiente robusto que aloja núcleo y refrigerante primario presurizado dentro del módulo SMR.',a:'PWR',au:'tipo',al:'Arquitectura conceptual',b:'1',bu:'módulo',bl:'Unidad compacta',camera:[7,6.5,9],target:[0,3.6,0]},
+  core:{index:'SMR / CORE',icon:'CORE',kicker:'NÚCLEO Y COMBUSTIBLE',title:'Núcleo de combustible',description:'Zona donde se libera calor por fisión controlada. El brillo muestra calor útil, no radiación visible.',a:'~300',au:'MWt',al:'Térmica ilustrativa',b:'UO₂',bu:'',bl:'Combustible típico',camera:[5.5,5,6],target:[0,2.1,0]},
+  controlRods:{index:'SMR / CRD',icon:'CRD',kicker:'CONTROL Y PARADA',title:'Barras de control',description:'Absorben neutrones para modular potencia o detener la reacción mediante inserción rápida.',a:'SCRAM',au:'',al:'Parada rápida',b:'B₄C',bu:'',bl:'Absorbente típico',camera:[6,7.8,6],target:[0,5.2,0]},
+  steamGenerator:{index:'SMR / SG',icon:'SG',kicker:'INTERCAMBIO TÉRMICO',title:'Generadores de vapor internos',description:'Separan el circuito primario del secundario y producen vapor limpio hacia turbina.',a:'2',au:'lazos',al:'Intercambiadores',b:'0',bu:'mezcla',bl:'Circuitos separados',camera:[8,6,7],target:[1.7,3.8,0]},
+  pressurizer:{index:'SMR / PRZ',icon:'PRZ',kicker:'PRESIÓN DEL PRIMARIO',title:'Presurizador',description:'Mantiene presión alta para evitar ebullición en la vasija durante operación normal.',a:'15',au:'MPa',al:'Orden PWR',b:'ΔP',bu:'',bl:'Control de presión',camera:[7,7,8],target:[.35,4.8,2.2]},
+  primaryPumps:{index:'SMR / RCP',icon:'RCP',kicker:'RECIRCULACIÓN',title:'Bombas del primario',description:'Impulsan agua presurizada por núcleo y generadores de vapor. En diseños SMR pueden integrarse.',a:'N+1',au:'',al:'Redundancia',b:'↻',bu:'',bl:'Flujo cerrado',camera:[8,5,6],target:[2.6,2.1,-1.1]},
+  primaryLoop:{index:'CIR / PRI',icon:'PRI',kicker:'CIRCUITO PRIMARIO',title:'Lazo primario presurizado',description:'Transporta calor desde el núcleo al generador de vapor sin mezclarse con el secundario. Color naranja.',a:'cerrado',au:'',al:'Sin descarga externa',b:'hot',bu:'leg',bl:'Rama caliente/fría',camera:[11,7,10],target:[1.7,3.8,-.5]},
+  turbina:{index:'02 / 05',icon:'T-G',kicker:'TURBINA · GENERADOR · CONDENSADOR',title:'Isla de potencia',description:'El vapor secundario expande en turbinas, mueve el eje, alimenta el generador y luego se condensa.',a:'60',au:'Hz',al:'Frecuencia objetivo',b:'13.8',bu:'kV',bl:'Salida ilustrativa',camera:[21,8,12],target:[12.2,2.3,.2]},
+  steamTurbine:{index:'TUR / HP-LP',icon:'TUR',kicker:'EXPANSIÓN DEL VAPOR',title:'Tren de turbina HP/LP',description:'Etapas de alta y baja presión extraen trabajo mecánico del vapor sobre un eje común.',a:'rpm',au:'',al:'Movimiento mecánico',b:'HP/LP',bu:'',bl:'Etapas visibles',camera:[18,6,9],target:[10.3,2.5,1.3]},
+  generator:{index:'ELC / GEN',icon:'GEN',kicker:'INDUCCIÓN ELECTROMAGNÉTICA',title:'Generador síncrono',description:'Convierte el giro de la turbina en electricidad alterna mediante campo magnético y bobinas.',a:'MVA',au:'',al:'Potencia aparente',b:'60',bu:'Hz',bl:'Sincronización',camera:[20,6,8],target:[14.8,2.5,1.3]},
+  condenser:{index:'CIR / COND',icon:'COND',kicker:'RETORNO DEL CICLO',title:'Condensador',description:'Convierte vapor agotado en agua y mantiene baja presión para mejorar rendimiento de turbina.',a:'vacío',au:'',al:'Baja presión',b:'↻',bu:'',bl:'Retorno de agua',camera:[18,5,-5],target:[11.3,.9,-.5]},
+  secondaryLoop:{index:'CIR / SEC',icon:'SEC',kicker:'CIRCUITO SECUNDARIO',title:'Vapor hacia turbina',description:'Vapor limpio generado por intercambio térmico; no entra en contacto con el núcleo.',a:'vapor',au:'',al:'Flujo amarillo',b:'separado',bu:'',bl:'Aislado del primario',camera:[16,7,9],target:[7.4,4.8,1]},
+  coolingLoop:{index:'CIR / CLG',icon:'CLG',kicker:'ENFRIAMIENTO',title:'Condensado y enfriamiento',description:'Extrae calor del condensador y recircula; requeriría análisis hídrico y térmico real.',a:'cerrado',au:'',al:'Representación',b:'ΔT',bu:'',bl:'Control térmico',camera:[18,7,-16],target:[9.7,1,-7]},
+  red:{index:'04 / 05',icon:'GRID',kicker:'SISTEMA ELÉCTRICO',title:'Subestación y evacuación',description:'Transformadores, interruptores, aisladores, barras y líneas de salida para una red aislada.',a:'13.8→',au:'kV',al:'Elevación conceptual',b:'N-1',bu:'',bl:'Resiliencia',camera:[31,9,13],target:[21.2,1.7,1]},
+  transformer:{index:'ELC / XFMR',icon:'XFMR',kicker:'TRANSFORMACIÓN DE TENSIÓN',title:'Transformador elevador',description:'Eleva tensión para transportar potencia con menos pérdidas. Las bobinas muestran devanados.',a:'step-up',au:'',al:'Aumenta tensión',b:'óleo',bu:'',bl:'Aislamiento típico',camera:[29,7,8],target:[21,1.4,-.6]},
+  switchyard:{index:'ELC / SWY',icon:'SWY',kicker:'PROTECCIÓN Y MANIOBRA',title:'Patio de llaves',description:'Interruptores y seccionadores conectan, aíslan y protegen los circuitos de salida.',a:'relés',au:'',al:'Protección',b:'bus',bu:'',bl:'Barras colectoras',camera:[30,7,10],target:[21,1.8,3]},
+  electricalBus:{index:'ELC / BUS',icon:'BUS',kicker:'BARRA ELÉCTRICA',title:'Bus de salida',description:'Camino principal de potencia desde generador hacia transformadores y líneas. Color verde.',a:'MW',au:'',al:'Potencia activa',b:'Mvar',bu:'',bl:'Reactiva/voltaje',camera:[28,7,10],target:[19.5,2.5,1]},
+  iquitos:{index:'05 / 05',icon:'IQ',kicker:'CARGA AISLADA AMAZÓNICA',title:'Iquitos como destino energético',description:'Representa carga urbana, hospitales, bombeo, frío industrial y servicios críticos.',a:'110',au:'MW',al:'Demanda escenario',b:'micro',bu:'grid',bl:'Red aislada conceptual',camera:[41,11,18],target:[31,2,7]}
+});
+const facts = {reactor:[['Qué mirar','Contención transparente, vasija, núcleo, barras, generadores de vapor y lazos primarios.'],['Ruta energética','Nuclear → calor → vapor → turbina → generador → transformador → red.']],containment:[['Función','Barrera física final de confinamiento.'],['Visual','Cortada para mostrar el interior.']],smrVessel:[['Función','Contener núcleo y refrigerante presurizado.'],['Realismo','Equivale a la RPV de un PWR.']],core:[['Función','Generar calor por fisión controlada.'],['Seguridad','Controlado por barras, refrigeración y protección.']],controlRods:[['Función','Absorber neutrones y detener potencia.'],['Operación','Inserción rápida tipo SCRAM.']],steamGenerator:[['Función','Transferir calor al secundario.'],['Clave','Separa primario de vapor de turbina.']],pressurizer:[['Función','Regular presión del primario.'],['Clave','Evita ebullición en vasija.']],primaryPumps:[['Función','Recircular refrigerante primario.'],['SMR','Puede estar integrado al módulo.']],primaryLoop:[['Función','Transportar calor sin mezclar circuitos.'],['Color','Naranja: primario caliente/frío.']],turbina:[['Función','Convertir vapor en giro mecánico.'],['Ruta','Luego acciona el generador.']],steamTurbine:[['Función','Extraer trabajo del vapor.'],['Visual','Discos representan etapas HP/LP.']],generator:[['Función','Convertir giro en electricidad AC.'],['Control','Sincroniza frecuencia, fase y tensión.']],condenser:[['Función','Condensar vapor agotado.'],['Eficiencia','Mejora rendimiento con baja presión.']],secondaryLoop:[['Función','Llevar vapor limpio a turbina.'],['Separación','No toca el núcleo.']],coolingLoop:[['Función','Extraer calor residual.'],['Ambiental','Requiere evaluación hídrica real.']],red:[['Función','Elevar, proteger y despachar energía.'],['Contexto','Orientado a red aislada amazónica.']],transformer:[['Función','Elevar tensión y reducir pérdidas.'],['Visual','Bobinas representan devanados.']],switchyard:[['Función','Maniobra y protección eléctrica.'],['Operación','Aísla fallas sin apagar toda la planta.']],electricalBus:[['Función','Camino de potencia sincronizada.'],['Color','Verde: salida eléctrica.']],iquitos:[['Función','Representar demanda y servicios críticos.'],['Nota','Valores ilustrativos, no estudio de red.']]};
+function ensureFacts(){const p=document.getElementById('insightPanel');let f=document.getElementById('systemFacts');if(!f){f=document.createElement('div');f.id='systemFacts';f.className='system-facts';p.insertBefore(f,p.querySelector('.status-line'));const n=document.createElement('p');n.className='subcomponent-note';n.textContent='Tip: haz clic en piezas internas, tuberías, condensador, generador o transformadores para ver su función.';p.insertBefore(n,p.querySelector('.status-line'));}return f;}
+function renderFacts(){const f=ensureFacts();const rows=facts[selectedKey]||facts.reactor;f.innerHTML=rows.map(r=>'<article><strong>'+r[0]+'</strong><span>'+r[1]+'</span></article>').join('');}
+function renderSoon(){setTimeout(renderFacts,0);} canvas.addEventListener('pointerup',renderSoon); document.querySelectorAll('.nav-step,#startTour,#flowButton').forEach(el=>el.addEventListener('click',renderSoon));
+addHotspot('smrVessel','VASIJA<br><b>RPV</b>',[0,6.35,0]); addHotspot('core','NÚCLEO<br><b>COMBUSTIBLE</b>',[0,3.25,0]); addHotspot('steamGenerator','INTERCAMBIO<br><b>GEN. VAPOR</b>',[2.4,5.75,.1]); addHotspot('primaryLoop','PRIMARIO<br><b>PRESURIZADO</b>',[3.3,4.45,-.8]); addHotspot('steamTurbine','TURBINA<br><b>HP/LP</b>',[10.8,4.55,1.3]); addHotspot('condenser','CONDENSADOR<br><b>RETORNO</b>',[11.3,1.8,-.4]); addHotspot('generator','GENERADOR<br><b>AC</b>',[14.9,4.1,1.3]); addHotspot('transformer','TRANSFORMADOR<br><b>STEP-UP</b>',[21,3.3,-.5]); addHotspot('switchyard','PATIO<br><b>DE LLAVES</b>',[21,3.4,3.2]);
+renderFacts(); selectComponent('reactor', false);
