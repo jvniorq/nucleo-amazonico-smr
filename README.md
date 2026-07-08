@@ -2,6 +2,12 @@
 
 Experiencia web interactiva que explora, de forma conceptual, cómo un reactor modular pequeño (SMR) podría convertir calor nuclear en energía eléctrica para una red aislada como Iquitos.
 
+## Enlace público
+
+La simulación se publica con GitHub Pages en:
+
+https://jvniorq.github.io/nucleo-amazonico-smr/
+
 ## Experiencia
 
 - Recorrido 3D por reactor, turbina, enfriamiento, subestación e Iquitos.
