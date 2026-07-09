@@ -564,3 +564,18 @@ const oldHot=updateHotspots;updateHotspots=function(){oldHot();syncLabels()};if(
   renderFacts();
   syncCard();
 }
+
+
+/* --- SMR integral framing tune: show full vertical module on first load --- */
+{
+  if (components.reactor) {
+    components.reactor.camera = [7.2, 8.6, 22.5];
+    components.reactor.target = [0, 5.75, 0];
+  }
+  controls.minDistance = 7.5;
+  controls.maxDistance = 46;
+  camera.position.set(7.2, 8.6, 22.5);
+  controls.target.set(0, 5.75, 0);
+  selectComponent('reactor', false);
+  syncCard();
+}
