@@ -359,3 +359,208 @@ function go(n){let i=views.indexOf(selectedKey);if(i<0)i=0;selectComponent(views
 document.getElementById('refPrev').onclick=()=>go(-1);document.getElementById('refNext').onclick=()=>go(1);document.getElementById('refHome').onclick=()=>{cameraGoal=new THREE.Vector3(28,18,34);targetGoal=new THREE.Vector3(10,3,-3);controls.autoRotate=false};document.getElementById('refNames').onclick=e=>{refNames=!refNames;e.currentTarget.style.opacity=refNames?'1':'.45'};document.getElementById('refLoops').onclick=e=>{const off=e.currentTarget.dataset.off!=='1';e.currentTarget.dataset.off=off?'1':'0';e.currentTarget.style.opacity=off?'.45':'1';flowParticles.forEach(f=>f.dots.forEach(d=>d.visible=!off))};
 canvas.addEventListener('pointerup',()=>setTimeout(syncCard,0));document.querySelectorAll('.nav-step,#startTour,#flowButton').forEach(el=>el.addEventListener('click',()=>setTimeout(syncCard,0)));
 const oldHot=updateHotspots;updateHotspots=function(){oldHot();syncLabels()};if(typeof addHotspot==='function')addHotspot('coolingTower','TORRES<br><b>ENFRIAMIENTO</b>',[8,9.4,-19.5]);syncCard();
+
+
+/* --- NuScale-style integral SMR vessel upgrade: compact module, no cooling towers as hero object --- */
+{
+  const smrKeysToHide = ['reactor','containment','smrVessel','core','controlRods','steamGenerator','pressurizer','primaryPumps'];
+  smrKeysToHide.forEach(key => componentGroups[key]?.traverse(o => { o.visible = false; o.userData.hiddenLegacySmr = true; }));
+  scene.traverse(o => {
+    const key = o.userData?.component;
+    if (['primaryLoop','secondaryLoop','coolingTower'].includes(key)) o.visible = false;
+  });
+  if (Array.isArray(views)) {
+    let idx;
+    while ((idx = views.indexOf('coolingTower')) >= 0) views.splice(idx, 1);
+  }
+  delete components.coolingTower;
+  refLabels?.filter(o => o.k === 'coolingTower').forEach(o => { o.el.style.display = 'none'; });
+  document.querySelectorAll('[data-hotspot="coolingTower"]').forEach(el => { el.style.display = 'none'; });
+
+  const smrMetal = new THREE.MeshStandardMaterial({ color: 0xb9c8c7, roughness: .26, metalness: .82 });
+  const smrDark = new THREE.MeshStandardMaterial({ color: 0x24313a, roughness: .38, metalness: .74 });
+  const smrBlack = new THREE.MeshStandardMaterial({ color: 0x10171b, roughness: .5, metalness: .66 });
+  const smrWater = new THREE.MeshPhysicalMaterial({ color: 0x51d8ef, emissive: 0x18a9d2, emissiveIntensity: .45, transparent: true, opacity: .42, transmission: .22, roughness: .12, depthWrite: false });
+  const smrGlass = new THREE.MeshPhysicalMaterial({ color: 0x9fe4f2, transparent: true, opacity: .22, transmission: .38, roughness: .16, depthWrite: false, side: THREE.DoubleSide });
+  const smrSteam = new THREE.MeshStandardMaterial({ color: 0xdccaa6, roughness: .24, metalness: .55, emissive: 0xffc979, emissiveIntensity: .08 });
+  const smrOrange = new THREE.MeshBasicMaterial({ color: 0xff8a18 });
+
+  function cylBetween(a, b, radius, material, radial = 10) {
+    const start = new THREE.Vector3(...a), end = new THREE.Vector3(...b);
+    const mid = start.clone().add(end).multiplyScalar(.5);
+    const dir = end.clone().sub(start);
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, dir.length(), radial), material);
+    c.position.copy(mid);
+    c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+    c.castShadow = true; c.receiveShadow = true;
+    return c;
+  }
+  function addBolts(group, y, radius, count, size = .04) {
+    for (let i = 0; i < count; i++) {
+      const a = i / count * Math.PI * 2;
+      group.add(mesh(new THREE.CylinderGeometry(size, size, .13, 8), smrMetal, [Math.cos(a) * radius, y, Math.sin(a) * radius]));
+    }
+  }
+  function hideOldLabel(key) {
+    refLabels?.filter(o => o.k === key).forEach(o => { o.el.style.display = 'none'; });
+  }
+  function upsertLabel(key, text, pos) {
+    let existing = refLabels?.find(o => o.k === key && o.el.style.display !== 'none');
+    if (!existing && typeof label === 'function') {
+      existing = label(key, text, pos);
+      refLabels.push(existing);
+    }
+    if (existing) {
+      existing.el.style.display = '';
+      existing.el.textContent = text;
+      existing.pos.set(...pos);
+    }
+  }
+
+  const containment2 = new THREE.Group();
+  containment2.add(mesh(new THREE.CylinderGeometry(1.82, 1.98, 11.2, 96, 1, true, Math.PI * .12, Math.PI * 1.66), smrGlass, [0, 5.7, 0], false, false));
+  containment2.add(mesh(new THREE.SphereGeometry(1.82, 96, 20, Math.PI * .12, Math.PI * 1.66, 0, Math.PI / 2), smrGlass, [0, 11.3, 0], false, false));
+  containment2.add(mesh(new THREE.CylinderGeometry(1.98, 2.08, .42, 96), smrBlack, [0, .18, 0]));
+  addBolts(containment2, .45, 1.88, 42, .035);
+  tagGroup(containment2, 'containment');
+
+  const vessel2 = new THREE.Group();
+  vessel2.add(mesh(new THREE.CylinderGeometry(1.12, 1.28, 9.9, 96, 1, true, Math.PI * .10, Math.PI * 1.62), smrMetal, [0, 5.3, 0]));
+  vessel2.add(mesh(new THREE.SphereGeometry(1.12, 96, 18, Math.PI * .10, Math.PI * 1.62, 0, Math.PI / 2), smrDark, [0, 10.25, 0]));
+  vessel2.add(mesh(new THREE.SphereGeometry(1.28, 96, 18, Math.PI * .10, Math.PI * 1.62, Math.PI / 2, Math.PI / 2), smrDark, [0, .35, 0]));
+  vessel2.add(mesh(new THREE.CylinderGeometry(1.36, 1.36, .2, 96), smrBlack, [0, 8.1, 0]));
+  vessel2.add(mesh(new THREE.CylinderGeometry(1.42, 1.42, .18, 96), smrBlack, [0, 1.2, 0]));
+  for (const y of [1.2, 8.1]) addBolts(vessel2, y + .16, 1.45, 36, .035);
+  for (const side of [-1, 1]) {
+    const nozzle = mesh(new THREE.CylinderGeometry(.18, .18, .72, 24), smrMetal, [side * 1.38, 4.15, .06]);
+    nozzle.rotation.z = Math.PI / 2; vessel2.add(nozzle);
+    const cap = mesh(new THREE.CylinderGeometry(.26, .26, .1, 24), smrMetal, [side * 1.76, 4.15, .06]);
+    cap.rotation.z = Math.PI / 2; vessel2.add(cap);
+  }
+  tagGroup(vessel2, 'smrVessel');
+
+  const riser2 = new THREE.Group();
+  riser2.add(mesh(new THREE.CylinderGeometry(.34, .42, 6.55, 40), smrWater, [0, 4.65, 0], false, false));
+  riser2.add(mesh(new THREE.CylinderGeometry(.04, .04, 6.75, 12), acidMat, [0, 4.7, 0], false, false));
+  riser2.add(mesh(new THREE.TorusGeometry(.45, .035, 12, 48), rm.cooling, [0, 7.9, 0], true, false));
+  tagGroup(riser2, 'riser');
+
+  const core2 = new THREE.Group();
+  core2.add(mesh(new THREE.CylinderGeometry(.56, .64, 1.45, 48), warmMat, [0, 1.35, 0]));
+  for (let ring = 0; ring < 4; ring++) {
+    const n = ring === 0 ? 1 : ring * 8;
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2, r = ring * .14;
+      core2.add(mesh(new THREE.CylinderGeometry(.028, .028, 1.58, 6), ring > 2 ? acidMat : smrSteam, [Math.cos(a) * r, 1.38, Math.sin(a) * r]));
+    }
+  }
+  tagGroup(core2, 'core');
+
+  const reflector2 = new THREE.Group();
+  reflector2.add(mesh(new THREE.CylinderGeometry(.78, .82, 1.68, 48, 1, true), new THREE.MeshPhysicalMaterial({ color: 0x8cb2c2, transparent: true, opacity: .28, roughness: .18, side: THREE.DoubleSide }), [0, 1.45, 0], false, false));
+  tagGroup(reflector2, 'neutronReflector');
+
+  const rods2 = new THREE.Group();
+  rods2.add(mesh(new THREE.BoxGeometry(1.04, .14, 1.04), smrBlack, [0, 9.65, 0]));
+  for (let i = 0; i < 17; i++) {
+    const a = i / 17 * Math.PI * 2, r = i % 4 === 0 ? .18 : .44;
+    rods2.add(mesh(new THREE.CylinderGeometry(.018, .018, 7.8, 8), smrBlack, [Math.cos(a) * r, 5.45, Math.sin(a) * r]));
+    rods2.add(mesh(new THREE.CylinderGeometry(.055, .055, .28, 10), smrMetal, [Math.cos(a) * r, 9.93, Math.sin(a) * r]));
+  }
+  tagGroup(rods2, 'controlRods');
+
+  const sg2 = new THREE.Group();
+  for (const side of [-1, 1]) {
+    sg2.add(mesh(new THREE.BoxGeometry(.24, 4.45, .88), new THREE.MeshStandardMaterial({ color: 0x8b9897, roughness: .34, metalness: .78 }), [side * .78, 4.75, .18]));
+    for (let i = 0; i < 14; i++) {
+      const z = -.18 + (i % 7) * .06;
+      const x = side * (.66 + Math.floor(i / 7) * .09);
+      sg2.add(mesh(new THREE.CylinderGeometry(.014, .014, 4.55, 8), smrSteam, [x, 4.75, z]));
+    }
+    const uTube = new THREE.Mesh(new THREE.TorusGeometry(.46, .035, 12, 48, Math.PI), smrSteam);
+    uTube.position.set(side * .58, 6.95, .18); uTube.rotation.z = side > 0 ? Math.PI : 0; sg2.add(uTube);
+  }
+  tagGroup(sg2, 'steamGenerator');
+  tagGroup(sg2.clone(), 'tubeBundle');
+
+  const press2 = new THREE.Group();
+  press2.add(mesh(new THREE.CylinderGeometry(.18, .22, 2.25, 24), smrWater, [.57, 7.25, .55], false, false));
+  press2.add(mesh(new THREE.SphereGeometry(.22, 24, 12), rm.primary, [.57, 8.42, .55]));
+  tagGroup(press2, 'pressurizer');
+
+  const platform = new THREE.Group();
+  platform.add(mesh(new THREE.BoxGeometry(3.5, .12, 2.6), smrDark, [0, 11.12, 0]));
+  for (const x of [-1.55, 1.55]) for (const z of [-1.15, 1.15]) platform.add(cylBetween([x, 10.98, z], [x, 12.05, z], .025, smrBlack));
+  for (const z of [-1.15, 1.15]) platform.add(cylBetween([-1.7, 11.84, z], [1.7, 11.84, z], .025, smrBlack));
+  for (const x of [-1.55, 1.55]) platform.add(cylBetween([x, 11.84, -1.25], [x, 11.84, 1.25], .025, smrBlack));
+  for (const x of [-1.1, 1.1]) { platform.add(cylBetween([x, 8.9, .95], [x, 11.15, .95], .035, smrBlack)); platform.add(cylBetween([x, 8.9, -.95], [x, 11.15, -.95], .035, smrBlack)); }
+  tagGroup(platform, 'supportTrunnion');
+
+  const steamLine2 = pipe([[.42,10.1,0],[.42,11.7,.55],[1.15,12.15,.55],[2.75,12.15,.55]], .08, smrSteam, 'steamLine');
+  const feedLine2 = pipe([[-.42,10.0,0],[-.42,11.65,-.55],[-1.15,12.05,-.55],[-2.55,12.05,-.55]], .065, rm.cooling, 'feedwaterLine');
+  steamLine2.visible = true; feedLine2.visible = true;
+
+  const moduleShadow = new THREE.Group();
+  moduleShadow.add(mesh(new THREE.CylinderGeometry(2.2, 2.35, .28, 96), new THREE.MeshStandardMaterial({ color: 0x1b2f2f, roughness: .8, metalness: .15 }), [0, -.02, 0]));
+  tagGroup(moduleShadow, 'reactor');
+
+  components.reactor = { index:'01 / 06', icon:'SMR', kicker:'MÓDULO INTEGRAL · CIRCULACIÓN NATURAL', title:'SMR integral tipo NuScale', description:'Vasija vertical compacta con contención, reactor pressure vessel, riser, núcleo, reflector, barras de control, generadores de vapor internos y líneas superiores de vapor/feedwater.', a:'≤300', au:'MWe', al:'Rango SMR de referencia', b:'NAT', bu:'circ', bl:'Circulación natural conceptual', camera:[5.8,8.2,15.2], target:[0,5.8,0] };
+  Object.assign(components, {
+    riser:{index:'SMR / RISER',icon:'RIS',kicker:'CIRCULACIÓN NATURAL',title:'Riser central',description:'Columna ascendente: el refrigerante caliente sube por diferencia de densidad y sostiene la circulación natural dentro del módulo.',a:'↑',au:'flujo',al:'Ascenso caliente',b:'sin',bu:'bomba',bl:'Concepto natural',camera:[4.8,7.4,10.5],target:[0,4.8,0]},
+    neutronReflector:{index:'SMR / REFL',icon:'REF',kicker:'ECONOMÍA NEUTRÓNICA',title:'Reflector neutrónico',description:'Anillo alrededor del combustible que ayuda a devolver neutrones hacia el núcleo y mejora eficiencia del diseño.',a:'core',au:'',al:'Alrededor del núcleo',b:'η',bu:'',bl:'Mejora uso de neutrones',camera:[4.3,4.4,8.4],target:[0,1.55,0]},
+    tubeBundle:{index:'SMR / HX',icon:'HX',kicker:'HEAT-EXCHANGE TUBE BUNDLE',title:'Haz de tubos de intercambio',description:'Conjunto de tubos verticales del generador de vapor; transfiere calor al circuito secundario sin mezclarlo con el primario.',a:'0',au:'mezcla',al:'Separación de circuitos',b:'HX',bu:'',bl:'Intercambio térmico',camera:[4.7,6.2,9.1],target:[.75,4.9,.1]},
+    steamLine:{index:'SEC / STM',icon:'STM',kicker:'STEAM LINE',title:'Línea de vapor',description:'Salida superior del vapor secundario hacia la turbina/generador. En esta vista se muestra como tubería superior beige.',a:'vapor',au:'',al:'Hacia turbina',b:'↑',bu:'',bl:'Salida superior',camera:[4.6,11.6,8.8],target:[.9,11.55,.4]},
+    feedwaterLine:{index:'SEC / FWD',icon:'FWD',kicker:'FEEDWATER LINE',title:'Línea de agua de alimentación',description:'Retorno de agua al generador de vapor para cerrar el ciclo secundario después del condensador.',a:'agua',au:'',al:'Retorno secundario',b:'↻',bu:'',bl:'Ciclo cerrado',camera:[-4.8,11.4,8.8],target:[-.9,11.5,-.4]},
+    supportTrunnion:{index:'SMR / SUP',icon:'SUP',kicker:'SOPORTE Y PLATAFORMA',title:'Soporte superior y plataforma',description:'Estructura superior para tuberías, acceso e instrumentación; representa el aspecto industrial compacto del módulo.',a:'modular',au:'',al:'Montaje de fábrica',b:'transport',bu:'',bl:'Transportable',camera:[5.6,12.4,9.7],target:[0,10.9,0]}
+  });
+  components.containment.camera = [5.8,8.1,13.7]; components.containment.target = [0,5.9,0]; components.containment.title = 'Containment vessel'; components.containment.description = 'Vasija externa de contención del módulo integral. Se ve semitransparente/cortada para observar el reactor interior.';
+  components.smrVessel.camera = [4.8,7.5,10.8]; components.smrVessel.target = [0,5.1,0]; components.smrVessel.title = 'Reactor pressure vessel'; components.smrVessel.description = 'Vasija de presión interna que aloja núcleo, riser y refrigerante primario en configuración compacta vertical.';
+  components.core.camera = [4.3,3.6,7.7]; components.core.target = [0,1.4,0]; components.core.title = 'Reactor core / fuel assembly'; components.core.description = 'Zona inferior del módulo con arreglos de combustible. La escala visual enfatiza combustible, reflector y barras de control.';
+  components.controlRods.camera = [4.7,8.8,8.6]; components.controlRods.target = [0,5.8,0]; components.controlRods.title = 'Control rods'; components.controlRods.description = 'Barras verticales de control y parada que descienden desde la parte superior hacia el núcleo.';
+  components.steamGenerator.camera = [5.2,6.4,9.3]; components.steamGenerator.target = [.75,5,0]; components.steamGenerator.title = 'Steam generator interno'; components.steamGenerator.description = 'Generadores de vapor integrados al módulo, a los lados del riser, con haces de tubos de intercambio.';
+  components.pressurizer.camera = [4.8,8.6,8.8]; components.pressurizer.target = [.55,7.8,.55]; components.pressurizer.title = 'Pressurizer interno'; components.pressurizer.description = 'Volumen presurizador integrado para mantener el primario en condiciones de operación estable.';
+  facts.reactor = [['Qué cambió','La escena ahora representa un SMR integral vertical tipo NuScale, no una central PWR con torres.'],['Componentes visibles','Containment vessel, RPV, riser, steam generator, tube bundle, pressurizer, control rods, reflector, fuel assembly y líneas superiores.']];
+  facts.riser = [['Función','Permite circulación natural del refrigerante por diferencia de densidad.'],['Clave SMR','Reduce dependencia visual de bombas externas grandes.']];
+  facts.neutronReflector = [['Función','Rodea el núcleo y ayuda a mejorar economía neutrónica.'],['Ubicación','Anillo inferior alrededor del combustible.']];
+  facts.tubeBundle = [['Función','Transferir calor al secundario dentro del generador de vapor.'],['Separación','Primario y secundario no se mezclan.']];
+  facts.steamLine = [['Función','Lleva vapor secundario hacia turbina.'],['Visual','Tubería superior beige, como en el esquema de referencia.']];
+  facts.feedwaterLine = [['Función','Retorna agua de alimentación al generador de vapor.'],['Visual','Tubería superior de retorno.']];
+  facts.supportTrunnion = [['Función','Soporte, plataforma e instrumentación superior.'],['SMR','Refuerza el aspecto modular/transportable.']];
+
+  ['smrVessel','steamGenerator','primaryPumps','pressurizer','steamTurbine','generator','condenser','transformer','switchyard'].forEach(hideOldLabel);
+  upsertLabel('containment','CONTAINMENT VESSEL',[0,9.25,-.45]);
+  upsertLabel('smrVessel','REACTOR PRESSURE VESSEL',[0,6.45,.55]);
+  upsertLabel('steamGenerator','STEAM GENERATOR',[.98,5.85,.35]);
+  upsertLabel('tubeBundle','HEAT-EXCHANGE TUBE BUNDLE',[1.05,4.35,.55]);
+  upsertLabel('riser','RISER',[0,6.25,0]);
+  upsertLabel('pressurizer','PRESSURIZER',[.58,8.55,.62]);
+  upsertLabel('controlRods','CONTROL RODS',[0,8.85,.22]);
+  upsertLabel('core','REACTOR CORE / FUEL ASSEMBLY',[0,2.1,.45]);
+  upsertLabel('neutronReflector','NEUTRON REFLECTOR',[0,1.75,.75]);
+  upsertLabel('steamLine','STEAM LINE',[1.65,12.25,.55]);
+  upsertLabel('feedwaterLine','FEEDWATER LINE',[-1.65,12.15,-.55]);
+
+  addHotspot('riser','RISER<br><b>CIRCULACIÓN</b>',[0,6.5,0]);
+  addHotspot('tubeBundle','TUBOS<br><b>HX</b>',[1.02,5.15,.4]);
+  addHotspot('steamLine','STEAM<br><b>LINE</b>',[1.7,12.2,.55]);
+  addHotspot('feedwaterLine','FEEDWATER<br><b>LINE</b>',[-1.7,12.1,-.55]);
+  addHotspot('neutronReflector','NEUTRON<br><b>REFLECTOR</b>',[0,1.9,.75]);
+  addHotspot('supportTrunnion','SUPPORT<br><b>TRUNNION</b>',[0,11.55,0]);
+
+  if (Array.isArray(views)) {
+    const insert = ['riser','tubeBundle','steamLine','feedwaterLine','neutronReflector','supportTrunnion'];
+    const anchor = Math.max(1, views.indexOf('steamGenerator') + 1);
+    insert.forEach((key, offset) => { if (!views.includes(key)) views.splice(anchor + offset, 0, key); });
+  }
+  const legendTitle = techLegend?.querySelector('h3');
+  if (legendTitle) legendTitle.textContent = 'SMR INTEGRAL · CIRCUITOS';
+  const refTitle = document.getElementById('refTitle');
+  if (refTitle) refTitle.textContent = 'SMR INTEGRAL TIPO NUSCALE';
+  camera.position.set(5.8, 8.2, 15.2);
+  controls.target.set(0, 5.8, 0);
+  controls.minDistance = 5.5;
+  controls.maxDistance = 42;
+  selectComponent('reactor', false);
+  renderFacts();
+  syncCard();
+}
