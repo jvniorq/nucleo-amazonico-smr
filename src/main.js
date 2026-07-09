@@ -11,7 +11,7 @@ camera.position.set(24, 17, 31);
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
-renderer.outputColorSpace = THREE.SRGBColoconst refControls=document.createElement('div');refControls.className='ref-controls';refControls.innerHTML=rSpace;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
