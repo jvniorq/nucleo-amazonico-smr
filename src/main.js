@@ -11,7 +11,7 @@ camera.position.set(24, 17, 31);
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
-renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.outputColorSpace = THREE.SRGBColoconst refControls=document.createElement('div');refControls.className='ref-controls';refControls.innerHTML=rSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
@@ -352,7 +352,7 @@ function label(k,l,p){const e=document.createElement('div');e.className='ref-lab
 const refLabels=[label('smrVessel','REACTOR / RPV',[0,6.8,0]),label('steamGenerator','GENERADOR DE VAPOR',[2.2,6.25,.1]),label('primaryPumps','BOMBA PRIMARIA',[2.8,2.85,-1.2]),label('pressurizer','PRESURIZADOR',[.35,6.35,2.2]),label('steamTurbine','TURBINA HP/LP',[10.8,4.85,1.3]),label('generator','GENERADOR',[14.9,4.45,1.3]),label('condenser','CONDENSADOR',[11.3,2.05,-.4]),label('coolingTower','TORRES DE ENFRIAMIENTO',[8,9.8,-19.5]),label('transformer','TRANSFORMADOR',[21,3.65,-.5]),label('switchyard','PATIO DE LLAVES',[21,3.75,3.2])];
 let refNames=true;function syncLabels(){refLabels.forEach(o=>{const p=o.pos.clone().project(camera),v=refNames&&p.z<1&&p.x>-1.08&&p.x<1.08&&p.y>-1.08&&p.y<1.08;o.el.style.opacity=v?'1':'0';o.el.style.left=((p.x*.5+.5)*innerWidth)+'px';o.el.style.top=((-p.y*.5+.5)*innerHeight)+'px'})}
 const card=document.createElement('section');card.className='ref-card';card.innerHTML='<header><b id="refTitle">MÓDULO SMR</b><span>OPEN ◇</span></header><p id="refText"></p>';document.body.appendChild(card);
-const controls=document.createElement('div');controls.className='ref-controls';controls.innerHTML='<button id="refPrev">‹</button><div class="ref-view" id="refView">Módulo SMR</div><button id="refNext">›</button><button class="wide" id="refNames">NOMBRES</button><button class="wide" id="refLoops">LOOPS</button><button id="refHome">⌂</button>';document.body.appendChild(controls);
+document.body.appendChild(refControls);'<button id="refPrev">‹</button><div class="ref-view" id="refView">Módulo SMR</div><button id="refNext">›</button><button class="wide" id="refNames">NOMBRES</button><button class="wide" id="refLoops">LOOPS</button><button id="refHome">⌂</button>';document.body.appendChild(refControls);
 const views=['reactor','containment','smrVessel','core','controlRods','steamGenerator','primaryPumps','pressurizer','primaryLoop','steamTurbine','generator','condenser','coolingTower','transformer','switchyard','iquitos'];
 function syncCard(){const d=components[selectedKey]||components.reactor;document.getElementById('refTitle').textContent=(d.title||selectedKey).toUpperCase();document.getElementById('refText').textContent=d.description||'';document.getElementById('refView').textContent=d.title||selectedKey}
 function go(n){let i=views.indexOf(selectedKey);if(i<0)i=0;selectComponent(views[(i+n+views.length)%views.length]);syncCard()}
